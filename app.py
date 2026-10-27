@@ -1,4 +1,4 @@
-import streamlit as st
+streamlit_code = """import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
@@ -67,20 +67,22 @@ if uploaded_file is not None:
     # 1. Processing Input
     if file_name.endswith('.csv'):
         input_df = pd.read_csv(uploaded_file)
+        is_pcap = False
     else:
         with tempfile.NamedTemporaryFile(delete=False) as temp_pcap:
             temp_pcap.write(uploaded_file.read())
             temp_pcap_path = temp_pcap.name
         
-        with st.spinner("Parsing raw packets from Wireshark PCAP (this can take a moment)... "):
+        with st.spinner("Parsing raw packets from Wireshark PCAP... "):
             input_df = extract_features_from_pcap(temp_pcap_path, feature_names)
         os.unlink(temp_pcap_path)
+        is_pcap = True
     
     # Ensure we only work with expected model features
     available_features = [col for col in feature_names if col in input_df.columns]
     missing_features = [col for col in feature_names if col not in input_df.columns]
     
-    # Fill missing columns with 0.0 to prevent errors
+    # Fill missing columns with 0.0
     for col in missing_features:
         input_df[col] = 0.0
         
@@ -89,6 +91,15 @@ if uploaded_file is not None:
     if len(X_eval) == 0:
         st.warning("No IP packets discovered or features matching the training data.")
         st.stop()
+        
+    # Display feature completeness warning for PCAPs
+    if is_pcap:
+        st.warning(
+            "⚠️ Note on PCAP Parsing: Raw PCAPs lack advanced flow calculations (like IAT, Rates, and Variances) "
+            "present in your CSV dataset. These columns have been defaulted to 0.0. Due to class imbalance in "
+            "your model, this can bias classification results toward dominant classes like 'Flood Attacks'. "
+            "For high-fidelity tests (like SQL Injections), upload a fully preprocessed CSV!"
+        )
         
     # 2. Model Prediction
     with st.spinner("Evaluating dataset against XGBoost classifier..."):
@@ -125,3 +136,9 @@ if uploaded_file is not None:
             
     st.subheader("📝 Analyzed Session Logs")
     st.dataframe(input_df[['Header_Length', 'Protocol Type', 'Tot size', 'Predicted_Threat_Family']].head(100))
+"""
+
+with open('streamlit_app/app.py', 'w') as f:
+    f.write(streamlit_code)
+
+print("App file successfully updated with warnings and smart feature mappings!")
